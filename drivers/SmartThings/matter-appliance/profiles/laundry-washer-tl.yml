@@ -8,21 +8,13 @@ components:
     version: 1
   - id: laundryWasherRinseMode
     version: 1
-  - id: spacewonder52282.applianceOperationalState
+  - id: operationalState
+    version: 1
+  - id: temperatureLevel
+    version: 1
+  - id: laundryWasherSpinSpeed
     version: 1
   - id: refresh
-    version: 1
-  categories:
-  - name: Washer
-- id: temperatureLevel
-  capabilities:
-  - id: mode
-    version: 1
-  categories:
-  - name: Washer
-- id: laundryWasherSpinSpeed
-  capabilities:
-  - id: mode
     version: 1
   categories:
   - name: Washer

@@ -21,10 +21,26 @@ local utils = require "st.utils"
 
 local DISHWASHER_DEVICE_TYPE_ID = 0x0075
 
-local applianceOperationalStateId = "spacewonder52282.applianceOperationalState"
-local applianceOperationalState = capabilities[applianceOperationalStateId]
+local OPERATIONAL_STATE_COMMAND_MAP = {
+  [clusters.OperationalState.commands.Pause.ID] = "pause",
+  [clusters.OperationalState.commands.Stop.ID] = "stop",
+  [clusters.OperationalState.commands.Start.ID] = "start",
+  [clusters.OperationalState.commands.Resume.ID] = "resume",
+}
+
 local supportedTemperatureLevels = {}
 local dishwasherModeSupportedModes = {}
+
+-- helper functions
+local function key_exists(array, key)
+  for k, _ in pairs(array) do
+    if k == key then
+      return true
+    end
+  end
+  return false
+end
+--------------------------------------------------------------------------
 
 local function device_init(driver, device)
   device:subscribe()
@@ -42,7 +58,6 @@ local function is_matter_dishwasher(opts, driver, device)
   return false
 end
 
--- TODO Create temperatureLevel
 local function selected_temperature_level_attr_handler(driver, device, ib, response)
   local tl_eps = device:get_endpoints(clusters.TemperatureControl.ID, {feature_bitmap = clusters.TemperatureControl.types.Feature.TEMPERATURE_LEVEL})
   if #tl_eps == 0 then
@@ -55,14 +70,12 @@ local function selected_temperature_level_attr_handler(driver, device, ib, respo
   local temperatureLevel = ib.data.value
   for i, tempLevel in ipairs(supportedTemperatureLevels) do
     if i - 1 == temperatureLevel then
-      local component = device.profile.components["temperatureLevel"]
-      device:emit_component_event(component, capabilities.mode.mode(tempLevel))
+      device:emit_event_for_endpoint(ib.endpoint_id, capabilities.temperatureLevel.temperatureLevel(tempLevel))
       break
     end
   end
 end
 
--- TODO Create temperatureLevel
 local function supported_temperature_levels_attr_handler(driver, device, ib, response)
   local tl_eps = device:get_endpoints(clusters.TemperatureControl.ID, {feature_bitmap = clusters.TemperatureControl.types.Feature.TEMPERATURE_LEVEL})
   if #tl_eps == 0 then
@@ -76,8 +89,7 @@ local function supported_temperature_levels_attr_handler(driver, device, ib, res
   for _, tempLevel in ipairs(ib.data.elements) do
     table.insert(supportedTemperatureLevels, tempLevel.value)
   end
-  local component = device.profile.components["temperatureLevel"]
-  device:emit_component_event(component, capabilities.mode.supportedModes(supportedTemperatureLevels))
+  device:emit_event_for_endpoint(ib.endpoint_id, capabilities.temperatureLevel.supportedTemperatureLevels(supportedTemperatureLevels))
 end
 
 local function dishwasher_supported_modes_attr_handler(driver, device, ib, response)
@@ -150,35 +162,45 @@ local function dishwasher_alarm_attr_handler(driver, device, ib, response)
   end
 end
 
+local function operational_state_accepted_command_list_attr_handler(driver, device, ib, response)
+  log.info_with({ hub_logs = true },
+    string.format("operational_state_accepted_command_list_attr_handler: %s", ib.data.elements))
+
+  local accepted_command_list = {}
+  for _, accepted_command in ipairs(ib.data.elements) do
+    local accepted_command_id = accepted_command.value
+    if key_exists(OPERATIONAL_STATE_COMMAND_MAP, accepted_command_id) then
+      log.info_with({ hub_logs = true }, string.format("AcceptedCommand: %s => %s", accepted_command_id, OPERATIONAL_STATE_COMMAND_MAP[accepted_command_id]))
+      table.insert(accepted_command_list, OPERATIONAL_STATE_COMMAND_MAP[accepted_command_id])
+    end
+  end
+  device:emit_event_for_endpoint(ib.endpoint_id, capabilities.operationalState.supportedSelectableStates(accepted_command_list))
+end
+
 local function operational_state_attr_handler(driver, device, ib, response)
   log.info_with({ hub_logs = true },
     string.format("operational_state_attr_handler operationalState: %s", ib.data.value))
 
   if ib.data.value == clusters.OperationalState.types.OperationalStateEnum.STOPPED then
-    device:emit_event_for_endpoint(ib.endpoint_id, applianceOperationalState.operatingState.stopped())
+    device:emit_event_for_endpoint(ib.endpoint_id, capabilities.operationalState.operationalState.stopped())
   elseif ib.data.value == clusters.OperationalState.types.OperationalStateEnum.RUNNING then
-    device:emit_event_for_endpoint(ib.endpoint_id, applianceOperationalState.operatingState.running())
+    device:emit_event_for_endpoint(ib.endpoint_id, capabilities.operationalState.operationalState.running())
   elseif ib.data.value == clusters.OperationalState.types.OperationalStateEnum.PAUSED then
-    device:emit_event_for_endpoint(ib.endpoint_id, applianceOperationalState.operatingState.paused())
-  elseif ib.data.value == clusters.OperationalState.types.OperationalStateEnum.ERROR then
-    device:emit_event_for_endpoint(ib.endpoint_id, applianceOperationalState.operatingState.error())
+    device:emit_event_for_endpoint(ib.endpoint_id, capabilities.operationalState.operationalState.paused())
   end
 end
 
 local function operational_error_attr_handler(driver, device, ib, response)
-  -- TODO: Add error enum to dishwasherOperatingState
   log.info_with({ hub_logs = true },
     string.format("operational_error_attr_handler errorStateID: %s", ib.data.elements.error_state_id.value))
 
   local operationalError = ib.data.elements.error_state_id.value
-  if operationalError == clusters.OperationalState.types.ErrorStateEnum.NO_ERROR then
-    device:emit_event_for_endpoint(ib.endpoint_id, applianceOperationalState.operatingError.noError())
-  elseif operationalError == clusters.OperationalState.types.ErrorStateEnum.UNABLE_TO_START_OR_RESUME then
-    device:emit_event_for_endpoint(ib.endpoint_id, applianceOperationalState.operatingError.unableToStartOrResume())
+  if operationalError == clusters.OperationalState.types.ErrorStateEnum.UNABLE_TO_START_OR_RESUME then
+    device:emit_event_for_endpoint(ib.endpoint_id, capabilities.operationalState.operationalState.unableToStartOrResume())
   elseif operationalError == clusters.OperationalState.types.ErrorStateEnum.UNABLE_TO_COMPLETE_OPERATION then
-    device:emit_event_for_endpoint(ib.endpoint_id, applianceOperationalState.operatingError.unableToCompleteOperation())
+    device:emit_event_for_endpoint(ib.endpoint_id, capabilities.operationalState.operationalState.unableToCompleteOperation())
   elseif operationalError == clusters.OperationalState.types.ErrorStateEnum.COMMAND_INVALID_IN_STATE then
-    device:emit_event_for_endpoint(ib.endpoint_id, applianceOperationalState.operatingError.commandInvalidInState())
+    device:emit_event_for_endpoint(ib.endpoint_id, capabilities.operationalState.operationalState.commandInvalidInCurrentState())
   end
 end
 
@@ -188,53 +210,42 @@ local function handle_dishwasher_mode(driver, device, cmd)
     string.format("handle_dishwasher_mode mode: %s", cmd.args.mode))
 
   local ENDPOINT = 1
-  -- TODO: Create temperatureLevel
-  -- for i, mode in ipairs(dishwasherModeSupportedModes) do
-  --   if cmd.args.mode == mode then
-  --     device:send(clusters.DishwasherMode.commands.ChangeToMode(device, ENDPOINT, i - 1))
-  --     return
-  --   end
-  -- end
-  if cmd.component == "main" then
-    for i, mode in ipairs(dishwasherModeSupportedModes) do
-      if cmd.args.mode == mode then
-        device:send(clusters.DishwasherMode.commands.ChangeToMode(device, ENDPOINT, i - 1))
-        return
-      end
+  for i, mode in ipairs(dishwasherModeSupportedModes) do
+    if cmd.args.mode == mode then
+      device:send(clusters.DishwasherMode.commands.ChangeToMode(device, ENDPOINT, i - 1))
+      return
     end
-  elseif cmd.component == "temperatureLevel" then
-    -- TODO Create temperatureLevel
-    for i, tempLevel in ipairs(supportedTemperatureLevels) do
-      if cmd.args.mode == tempLevel then
-        device:send(clusters.TemperatureControl.commands.SetTemperature(device, ENDPOINT, nil, i - 1))
-        return
-      end
+  end
+end
+
+local function handle_temperature_level(driver, device, cmd)
+  log.info_with({ hub_logs = true },
+    string.format("handle_temperature_level: %s", cmd.args.temperatureLevel))
+
+  local ENDPOINT = 1
+  for i, tempLevel in ipairs(supportedTemperatureLevels) do
+    if cmd.args.temperatureLevel == tempLevel then
+      device:send(clusters.TemperatureControl.commands.SetTemperature(device, ENDPOINT, nil, i - 1))
+      return
     end
   end
 end
 
 local function handle_set_operating_state(driver, device, cmd)
   log.info_with({ hub_logs = true },
-    string.format("handle_set_operating_state state: %s", cmd.args.state))
+    string.format("handle_set_operating_state state: %s", cmd.args.operationalState))
 
   local endpoint_id = device:component_to_endpoint(cmd.component)
-  local state = cmd.args.state
-  local latest_state = device:get_latest_state(
-    cmd.component, applianceOperationalStateId,
-    applianceOperationalState.operatingState.NAME
-  )
-  if state == applianceOperationalState.operatingState.stopped.NAME then
+  local state = cmd.args.operationalState
+  if state == "start" then
+    device:send(clusters.OperationalState.server.commands.Start(device, endpoint_id))
+  elseif state == "stop" then
     device:send(clusters.OperationalState.server.commands.Stop(device, endpoint_id))
-  elseif state == applianceOperationalState.operatingState.running.NAME then
-    if latest_state == applianceOperationalState.operatingState.paused.NAME then
-      device:send(clusters.OperationalState.server.commands.Resume(device, endpoint_id))
-    else
-      device:send(clusters.OperationalState.server.commands.Start(device, endpoint_id))
-    end
-  elseif state == applianceOperationalState.operatingState.paused.NAME then
+  elseif state == "resume" then
+    device:send(clusters.OperationalState.server.commands.Resume(device, endpoint_id))
+  elseif state == "pause" then
     device:send(clusters.OperationalState.server.commands.Pause(device, endpoint_id))
   end
-  -- If this attribute is not read, the capability will not be updated and the app will receive a network error.
   device:send(clusters.OperationalState.attributes.OperationalState:read(device, endpoint_id))
   device:send(clusters.OperationalState.attributes.OperationalError:read(device, endpoint_id))
 end
@@ -258,6 +269,7 @@ local matter_dishwasher_handler = {
         [clusters.DishwasherAlarm.attributes.State.ID] = dishwasher_alarm_attr_handler,
       },
       [clusters.OperationalState.ID] = {
+        [clusters.OperationalState.attributes.AcceptedCommandList.ID] = operational_state_accepted_command_list_attr_handler,
         [clusters.OperationalState.attributes.OperationalState.ID] = operational_state_attr_handler,
         [clusters.OperationalState.attributes.OperationalError.ID] = operational_error_attr_handler,
       },
@@ -267,8 +279,11 @@ local matter_dishwasher_handler = {
     [capabilities.mode.ID] = {
       [capabilities.mode.commands.setMode.NAME] = handle_dishwasher_mode,
     },
-    [applianceOperationalStateId] = {
-      [applianceOperationalState.commands.setOperatingState.NAME] = handle_set_operating_state,
+    [capabilities.temperatureLevel.ID] = {
+      [capabilities.temperatureLevel.commands.setTemperatureLevel.NAME] = handle_temperature_level,
+    },
+    [capabilities.operationalState.ID] = {
+      [capabilities.operationalState.commands.setOperationalState.NAME] = handle_set_operating_state,
     },
   },
   can_handle = is_matter_dishwasher,
