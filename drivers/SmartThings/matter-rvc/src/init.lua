@@ -140,6 +140,7 @@ end
 -- Matter Handlers --
 local function rvc_run_mode_supported_mode_attr_handler(driver, device, ib, response)
   set_field_supported_modes(device, RVC_RUN_MODE_SUPPORTED_MODES, ib.data.elements)
+  local labels_of_supported_arguments = get_field_labels_of_supported_modes(device, RVC_RUN_MODE_SUPPORTED_MODES)
 
   -- State Machine Rules 1. RVC Run Mode - Mode Change Restrictions
   local current_mode = device:get_latest_state(
@@ -163,6 +164,7 @@ local function rvc_run_mode_supported_mode_attr_handler(driver, device, ib, resp
 
   local component = device.profile.components["runMode"]
   device:emit_component_event(component, capabilities.mode.supportedModes(labels_of_supported_modes))
+  device:emit_component_event(component, capabilities.mode.supportedArguments(labels_of_supported_arguments))
 end
 
 local function rvc_run_mode_current_mode_attr_handler(driver, device, ib, response)
@@ -212,6 +214,7 @@ local function rvc_clean_mode_supported_mode_attr_handler(driver, device, ib, re
 
   local component = device.profile.components["cleanMode"]
   device:emit_component_event(component, capabilities.mode.supportedModes(labels_of_supported_modes))
+  device:emit_component_event(component, capabilities.mode.supportedArguments(labels_of_supported_modes))
 end
 
 local function rvc_clean_mode_current_mode_attr_handler(driver, device, ib, response)
