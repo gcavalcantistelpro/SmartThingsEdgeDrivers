@@ -15,7 +15,7 @@
 local capabilities = require "st.capabilities"
 local ZigbeeDriver = require "st.zigbee"
 local defaults = require "st.zigbee.defaults"
-local temperature_defaults = "st.zigbee.defaults.temperatureMeasurement_defaults"
+local temperature_defaults = require "st.zigbee.defaults.temperatureMeasurement_defaults"
 local constants = require "st.zigbee.constants"
 local IASZone = (require "st.zigbee.zcl.clusters").IASZone
 local TemperatureMeasurement = (require "st.zigbee.zcl.clusters").TemperatureMeasurement
