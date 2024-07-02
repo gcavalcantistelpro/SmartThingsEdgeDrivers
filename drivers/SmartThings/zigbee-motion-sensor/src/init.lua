@@ -18,7 +18,6 @@ local defaults = require "st.zigbee.defaults"
 local constants = require "st.zigbee.constants"
 local zcl_clusters = require "st.zigbee.zcl.clusters"
 local temperature_defaults = require "st.zigbee.defaults.temperatureMeasurement_defaults"
-local TemperatureMeasurement = (require "st.zigbee.zcl.clusters").TemperatureMeasurement
 
 local HAS_RECONFIGURED = "_has_reconfigured"
 
@@ -56,7 +55,7 @@ local temperature_measurement_min_max_attr_handler = function(minOrMax)
   return function(driver, device, value, zb_rx)
     local raw_temp = value.value
     local celc_temp = raw_temp / 100.0
-    local temp_scale = "C" 
+    local temp_scale = "C"
 
     device:set_field(string.format("%s", minOrMax), celc_temp)
 
@@ -104,10 +103,10 @@ local zigbee_motion_driver = {
   },
   zigbee_handlers = {
     attr = {
-      [TemperatureMeasurement.ID] = {
-        [TemperatureMeasurement.attributes.MeasuredValue.ID] = temperature_measurement_attr_handler,
-        [TemperatureMeasurement.attributes.MinMeasuredValue.ID] = temperature_measurement_min_max_attr_handler(temperature_defaults.MIN_TEMP),
-        [TemperatureMeasurement.attributes.MaxMeasuredValue.ID] = temperature_measurement_min_max_attr_handler(temperature_defaults.MAX_TEMP),
+      [zcl_clusters.TemperatureMeasurement.ID] = {
+        [zcl_clusters.TemperatureMeasurement.attributes.MeasuredValue.ID] = temperature_measurement_attr_handler,
+        [zcl_clusters.TemperatureMeasurement.attributes.MinMeasuredValue.ID] = temperature_measurement_min_max_attr_handler(temperature_defaults.MIN_TEMP),
+        [zcl_clusters.TemperatureMeasurement.attributes.MaxMeasuredValue.ID] = temperature_measurement_min_max_attr_handler(temperature_defaults.MAX_TEMP),
       }
     }
   },

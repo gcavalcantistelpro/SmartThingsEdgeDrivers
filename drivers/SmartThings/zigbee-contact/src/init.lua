@@ -55,7 +55,7 @@ local temperature_measurement_min_max_attr_handler = function(minOrMax)
   return function(driver, device, value, zb_rx)
     local raw_temp = value.value
     local celc_temp = raw_temp / 100.0
-    local temp_scale = "C" 
+    local temp_scale = "C"
 
     device:set_field(string.format("%s", minOrMax), celc_temp)
 
